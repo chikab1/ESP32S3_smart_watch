@@ -1,0 +1,30 @@
+# Build
+build/
+managed_components/
+
+# IDE
+.vscode/
+.trae/
+.clangd/
+.ccls-cache/
+compile_commands.json
+.devcontainer/
+
+# ESP-IDF
+sdkconfig
+sdkconfig.old
+
+# Python
+__pycache__/
+*.pyc
+
+# OS
+.DS_Store
+Thumbs.db
+Desktop.ini
+
+# Temp
+*.swp
+*.bak
+*.tmp
+*.log
