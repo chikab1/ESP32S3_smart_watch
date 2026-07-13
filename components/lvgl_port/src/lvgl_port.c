@@ -1,4 +1,5 @@
 #include "lvgl_port.h"
+#include "ui_manager.h"
 #include "lcd.h"
 #include "cst816s.h"
 #include "bsp_board.h"
@@ -6,7 +7,12 @@
 #include "freertos/FreeRTOS.h"
 #include "freertos/task.h"
 #include "freertos/semphr.h"
+#include "esp_log.h"
+#include "esp_timer.h"
+#include "driver/i2c_master.h"
 #include <string.h>
+
+static const char *TAG = "lvgl_port";
 
 static lv_display_t *s_disp;
 static lv_indev_t   *s_indev;
@@ -28,36 +34,54 @@ static void disp_flush_cb(lv_display_t *disp,
 
     lcd_draw_bitmap(area->x1, area->y1, w, h, px_map);
     lv_display_flush_ready(disp);
-    vTaskDelay(1);
 }
+
+static bool s_last_pressed = false;
 
 static void touch_read_cb(lv_indev_t *indev,
                           lv_indev_data_t *data)
 {
     cst816s_point_t pt;
-    if (cst816s_read(&s_touch, &pt) == ESP_OK && pt.pressed) {
+    esp_err_t ret = cst816s_read(&s_touch, &pt);
+
+    if (ret != ESP_OK) {
+        data->state = s_last_pressed ? LV_INDEV_STATE_PRESSED : LV_INDEV_STATE_RELEASED;
+        return;
+    }
+
+    if (pt.pressed) {
         data->point.x = pt.x;
         data->point.y = pt.y;
         data->state   = LV_INDEV_STATE_PRESSED;
+        if (!s_last_pressed) {
+            ESP_LOGI(TAG, "touch down x=%d y=%d", pt.x, pt.y);
+            s_last_pressed = true;
+        }
     } else {
+        if (s_last_pressed) {
+            ESP_LOGI(TAG, "touch up");
+            s_last_pressed = false;
+        }
         data->state = LV_INDEV_STATE_RELEASED;
     }
 }
 
-static void lvgl_tick_task(void *arg)
+static uint32_t my_tick_get_cb(void)
 {
-    while (1) {
-        lv_tick_inc(1);
-        vTaskDelay(pdMS_TO_TICKS(1));
-    }
+    return (uint32_t)(esp_timer_get_time() / 1000);
 }
 
 static void lvgl_task(void *arg)
 {
+    ESP_LOGI(TAG, "lvgl_task started on core %d", xPortGetCoreID());
+
     while (1) {
-        lvgl_port_lock();
+        xSemaphoreTake(s_lvgl_mux, portMAX_DELAY);
         lv_timer_handler();
-        lvgl_port_unlock();
+        xSemaphoreGive(s_lvgl_mux);
+
+        ui_update();
+
         vTaskDelay(pdMS_TO_TICKS(5));
     }
 }
@@ -76,15 +100,21 @@ esp_err_t lvgl_port_init(i2c_master_bus_handle_t i2c_bus)
 {
     esp_err_t ret = lcd_init();
     if (ret != ESP_OK) {
+        ESP_LOGE(TAG, "lcd_init failed: %s", esp_err_to_name(ret));
         return ret;
     }
 
     ret = cst816s_init(&s_touch, i2c_bus);
     if (ret != ESP_OK) {
+        ESP_LOGE(TAG, "cst816s_init failed: %s", esp_err_to_name(ret));
         return ret;
     }
 
+    ESP_LOGI(TAG, "lcd+touch init OK");
+
     lv_init();
+
+    lv_tick_set_cb(my_tick_get_cb);
 
     s_disp = lv_display_create(LCD_WIDTH, LCD_HEIGHT);
     lv_display_set_color_format(s_disp, LV_COLOR_FORMAT_RGB565);
@@ -92,19 +122,25 @@ esp_err_t lvgl_port_init(i2c_master_bus_handle_t i2c_bus)
 
     size_t buf_size = LCD_WIDTH * 40 * 2;
     void *buf1 = heap_caps_malloc(buf_size, MALLOC_CAP_DMA);
-    printf("LVGL buf_size=%d buf1=%p\n", buf_size, buf1);
-    printf("LVGL %d.%d\n", LVGL_VERSION_MAJOR, LVGL_VERSION_MINOR);
     lv_display_set_buffers(s_disp, buf1, NULL, buf_size,
                            LV_DISPLAY_RENDER_MODE_PARTIAL);
 
     s_indev = lv_indev_create();
     lv_indev_set_type(s_indev, LV_INDEV_TYPE_POINTER);
     lv_indev_set_read_cb(s_indev, touch_read_cb);
+    lv_indev_set_gesture_min_distance(s_indev, 30);
+    lv_indev_set_gesture_min_velocity(s_indev, 2);
 
     s_lvgl_mux = xSemaphoreCreateMutex();
 
-    xTaskCreatePinnedToCore(lvgl_tick_task, "lv_tick", 2048, NULL, 1, NULL, 1);
-    xTaskCreatePinnedToCore(lvgl_task,    "lv_task", 8192, NULL, 2,  NULL, 1);
+    lvgl_port_lock();
+    ui_init();
+    lvgl_port_unlock();
+
+    ESP_LOGI(TAG, "init done, heap=%u",
+             (unsigned)heap_caps_get_free_size(MALLOC_CAP_INTERNAL));
+
+    xTaskCreatePinnedToCore(lvgl_task, "lv_task", 8192, NULL, 2, NULL, tskNO_AFFINITY);
 
     return ESP_OK;
 }

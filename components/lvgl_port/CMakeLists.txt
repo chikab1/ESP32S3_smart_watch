@@ -11,4 +11,6 @@ idf_component_register(
         lcd
         cst816s
         lvgl
+        ui
+        esp_timer
 )

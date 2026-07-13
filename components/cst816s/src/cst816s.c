@@ -2,6 +2,7 @@
 #include "cst816s_reg.h"
 #include "bsp_board.h"
 #include "driver/gpio.h"
+#include "esp_log.h"
 #include <string.h>
 #include "freertos/FreeRTOS.h"
 #include "freertos/task.h"
@@ -11,14 +12,14 @@ static esp_err_t cst816s_write_reg(cst816s_t *tp,
                                    uint8_t data)
 {
     uint8_t buf[2] = { reg, data };
-    return i2c_master_transmit(tp->dev, buf, 2, -1);
+    return i2c_master_transmit(tp->dev, buf, 2, 50);
 }
 
 static esp_err_t cst816s_read_reg(cst816s_t *tp,
                                   uint8_t reg,
                                   uint8_t *data)
 {
-    return i2c_master_transmit_receive(tp->dev, &reg, 1, data, 1, -1);
+    return i2c_master_transmit_receive(tp->dev, &reg, 1, data, 1, 50);
 }
 
 static esp_err_t cst816s_read_regs(cst816s_t *tp,
@@ -26,7 +27,7 @@ static esp_err_t cst816s_read_regs(cst816s_t *tp,
                                    uint8_t *buf,
                                    uint16_t len)
 {
-    return i2c_master_transmit_receive(tp->dev, &reg, 1, buf, len, -1);
+    return i2c_master_transmit_receive(tp->dev, &reg, 1, buf, len, 50);
 }
 
 esp_err_t cst816s_init(cst816s_t *tp,
@@ -62,6 +63,13 @@ esp_err_t cst816s_init(cst816s_t *tp,
 
     if ((id != 0xB4) && (id != 0xB5)) {
         return ESP_ERR_NOT_FOUND;
+    }
+
+    ret = cst816s_write_reg(tp, CST816S_DIS_AUTO_SLEEP, 0x00);
+    if (ret != ESP_OK) {
+        ESP_LOGW("cst816s", "disable auto-sleep failed: %s", esp_err_to_name(ret));
+    } else {
+        ESP_LOGI("cst816s", "auto-sleep disabled OK");
     }
 
     tp->ready = true;

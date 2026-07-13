@@ -1,17 +1,13 @@
 #include "bsp_board.h"
 #include "bsp_i2c.h"
 #include "lvgl_port.h"
-#include "lvgl.h"
 #include "freertos/FreeRTOS.h"
 #include "freertos/task.h"
 #include <stdio.h>
 
 void app_main(void)
 {
-    printf("LVGL version: %d.%d.%d\r\n",
-           lv_version_major(),
-           lv_version_minor(),
-           lv_version_patch());
+    printf("ESP32-S3 Smart Watch v0.2.0\r\n");
 
     bsp_init();
 
@@ -23,19 +19,7 @@ void app_main(void)
         return;
     }
 
-    printf("LVGL port init OK\r\n");
-
-    lvgl_port_lock();
-
-    lv_obj_t *label = lv_label_create(lv_screen_active());
-    lv_label_set_text(label, "Hello LVGL!");
-    lv_obj_center(label);
-
-    lv_obj_t *sub = lv_label_create(lv_screen_active());
-    lv_label_set_text(sub, "ESP32-S3 Watch");
-    lv_obj_align(sub, LV_ALIGN_CENTER, 0, 30);
-
-    lvgl_port_unlock();
+    printf("Watch OS started\r\n");
 
     while (1) {
         vTaskDelay(pdMS_TO_TICKS(1000));
