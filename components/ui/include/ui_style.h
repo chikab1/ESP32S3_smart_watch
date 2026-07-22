@@ -2,6 +2,16 @@
 
 #include "lvgl.h"
 
+#define ROUND_SCREEN_SIZE    240
+#define ROUND_SAFE_MARGIN    18
+#define ROUND_SAFE_W         (ROUND_SCREEN_SIZE - 2 * ROUND_SAFE_MARGIN)
+#define ROUND_SAFE_H         (ROUND_SCREEN_SIZE - 2 * ROUND_SAFE_MARGIN)
+#define ROUND_TOP_OFFSET     25
+#define ROUND_PANEL_W        ROUND_SAFE_W
+#define ROUND_PANEL_H        55
+#define ROUND_PANEL_GAP      6
+#define ROUND_PANEL_RADIUS   12
+
 void ui_style_init(void);
 
 lv_color_t ui_color_battery(void);

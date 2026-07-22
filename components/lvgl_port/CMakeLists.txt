@@ -13,4 +13,5 @@ idf_component_register(
         lvgl
         ui
         esp_timer
+        services
 )

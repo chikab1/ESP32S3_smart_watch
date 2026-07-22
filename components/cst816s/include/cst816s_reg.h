@@ -15,3 +15,4 @@
 #define CST816S_YPOS_L            0x06
 
 #define CST816S_DIS_AUTO_SLEEP    0xFE
+#define CST816S_IRQ_CTL           0xFA

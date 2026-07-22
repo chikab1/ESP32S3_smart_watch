@@ -28,3 +28,10 @@ esp_err_t cst816s_read_id(cst816s_t *tp,
 
 esp_err_t cst816s_read(cst816s_t *tp,
                        cst816s_point_t *point);
+
+esp_err_t cst816s_clear_int(cst816s_t *tp);
+
+esp_err_t cst816s_deinit(cst816s_t *tp);
+
+esp_err_t cst816s_resume(cst816s_t *tp,
+                         i2c_master_bus_handle_t bus);

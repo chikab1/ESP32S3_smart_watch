@@ -7,6 +7,8 @@
 
 esp_err_t lcd_init(void);
 
+esp_err_t lcd_reinit(void);
+
 esp_err_t lcd_fill_color(uint16_t color);
 
 esp_err_t lcd_fill_rect(uint16_t x,

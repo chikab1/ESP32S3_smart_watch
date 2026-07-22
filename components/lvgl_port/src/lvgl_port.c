@@ -1,8 +1,10 @@
 #include "lvgl_port.h"
 #include "ui_manager.h"
+#include "ui_data.h"
 #include "lcd.h"
 #include "cst816s.h"
 #include "bsp_board.h"
+#include "power_service.h"
 #include "lvgl.h"
 #include "freertos/FreeRTOS.h"
 #include "freertos/task.h"
@@ -18,6 +20,7 @@ static lv_display_t *s_disp;
 static lv_indev_t   *s_indev;
 static cst816s_t     s_touch;
 static SemaphoreHandle_t s_lvgl_mux;
+static volatile bool s_lvgl_suspended = false;
 
 static void disp_flush_cb(lv_display_t *disp,
                           const lv_area_t *area,
@@ -54,12 +57,11 @@ static void touch_read_cb(lv_indev_t *indev,
         data->point.y = pt.y;
         data->state   = LV_INDEV_STATE_PRESSED;
         if (!s_last_pressed) {
-            ESP_LOGI(TAG, "touch down x=%d y=%d", pt.x, pt.y);
             s_last_pressed = true;
+            power_service_reset_idle_timer();
         }
     } else {
         if (s_last_pressed) {
-            ESP_LOGI(TAG, "touch up");
             s_last_pressed = false;
         }
         data->state = LV_INDEV_STATE_RELEASED;
@@ -76,13 +78,30 @@ static void lvgl_task(void *arg)
     ESP_LOGI(TAG, "lvgl_task started on core %d", xPortGetCoreID());
 
     while (1) {
+        if (s_lvgl_suspended) {
+            vTaskDelay(pdMS_TO_TICKS(100));
+            continue;
+        }
+
+        power_state_t pwr = power_service_get_state();
+
+        if (pwr == POWER_STATE_SCREEN_OFF) {
+            vTaskDelay(pdMS_TO_TICKS(100));
+            continue;
+        }
+
         xSemaphoreTake(s_lvgl_mux, portMAX_DELAY);
         lv_timer_handler();
         xSemaphoreGive(s_lvgl_mux);
 
+        ui_data_poll_imu();
         ui_update();
 
-        vTaskDelay(pdMS_TO_TICKS(5));
+        if (pwr == POWER_STATE_ACTIVE) {
+            vTaskDelay(pdMS_TO_TICKS(5));
+        } else {
+            vTaskDelay(pdMS_TO_TICKS(20));
+        }
     }
 }
 
@@ -94,6 +113,19 @@ void lvgl_port_lock(void)
 void lvgl_port_unlock(void)
 {
     xSemaphoreGive(s_lvgl_mux);
+}
+
+void lvgl_port_suspend(void)
+{
+    s_lvgl_suspended = true;
+    ESP_LOGI(TAG, "LVGL suspended");
+}
+
+void lvgl_port_resume(void)
+{
+    s_lvgl_suspended = false;
+    lv_refr_now(s_disp);
+    ESP_LOGI(TAG, "LVGL resumed");
 }
 
 esp_err_t lvgl_port_init(i2c_master_bus_handle_t i2c_bus)
@@ -143,4 +175,9 @@ esp_err_t lvgl_port_init(i2c_master_bus_handle_t i2c_bus)
     xTaskCreatePinnedToCore(lvgl_task, "lv_task", 8192, NULL, 2, NULL, tskNO_AFFINITY);
 
     return ESP_OK;
+}
+
+cst816s_t *lvgl_port_get_touch(void)
+{
+    return &s_touch;
 }

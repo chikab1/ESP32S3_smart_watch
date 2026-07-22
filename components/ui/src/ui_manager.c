@@ -7,6 +7,7 @@
 #include "page_mqtt.h"
 #include "page_about.h"
 #include "page_system.h"
+#include "status_bar.h"
 #include "esp_log.h"
 #include "esp_heap_caps.h"
 #include <string.h>
@@ -95,6 +96,8 @@ void ui_page_back(void)
 void ui_init(void)
 {
     ui_style_init();
+
+    status_bar_init();
 
     ui_page_t *home = page_home_get();
     stack_push(home);

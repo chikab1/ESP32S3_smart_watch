@@ -42,6 +42,8 @@ esp_err_t qmi8658_init(qmi8658_t *imu,
                        i2c_master_bus_handle_t bus,
                        const qmi8658_config_t *cfg);
 
+esp_err_t qmi8658_deinit(qmi8658_t *imu);
+
 esp_err_t qmi8658_read_id(qmi8658_t *imu,
                           uint8_t *id);
 
@@ -51,5 +53,9 @@ esp_err_t qmi8658_read_raw(qmi8658_t *imu,
 
 esp_err_t qmi8658_read(qmi8658_t *imu,
                        qmi8658_data_t *data);
+
+esp_err_t qmi8658_set_odr(qmi8658_t *imu,
+                          uint8_t acc_odr,
+                          uint8_t gyro_odr);
 
 #endif

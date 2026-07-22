@@ -14,6 +14,16 @@ lv_obj_t *ui_create_screen(void)
     return screen;
 }
 
+lv_obj_t *ui_create_screen_scrollable(void)
+{
+    lv_obj_t *screen = lv_obj_create(NULL);
+    ui_setup_screen_base(screen);
+    lv_obj_add_flag(screen, LV_OBJ_FLAG_SCROLLABLE);
+    lv_obj_set_scrollbar_mode(screen, LV_SCROLLBAR_MODE_OFF);
+    lv_obj_set_scroll_dir(screen, LV_DIR_VER);
+    return screen;
+}
+
 void ui_setup_screen_base(lv_obj_t *screen)
 {
     lv_obj_remove_flag(screen, LV_OBJ_FLAG_SCROLLABLE);
@@ -27,13 +37,12 @@ void ui_setup_screen_base(lv_obj_t *screen)
 lv_obj_t *ui_create_menu_panel(lv_obj_t *parent, int32_t y_offset)
 {
     lv_obj_t *panel = lv_obj_create(parent);
-    lv_obj_set_size(panel, 240, 70);
-    lv_obj_set_pos(panel, 0, y_offset);
-    lv_obj_set_align(panel, LV_ALIGN_TOP_MID);
+    lv_obj_set_size(panel, ROUND_PANEL_W, ROUND_PANEL_H);
+    lv_obj_align(panel, LV_ALIGN_TOP_MID, 0, y_offset);
     lv_obj_remove_flag(panel, LV_OBJ_FLAG_SCROLLABLE);
-    lv_obj_set_style_radius(panel, 0, LV_PART_MAIN);
-    lv_obj_set_style_bg_color(panel, lv_color_hex(0xFFFFFF), LV_PART_MAIN);
-    lv_obj_set_style_bg_opa(panel, 0, LV_PART_MAIN);
+    lv_obj_set_style_radius(panel, ROUND_PANEL_RADIUS, LV_PART_MAIN);
+    lv_obj_set_style_bg_color(panel, lv_color_hex(0x1A1A2E), LV_PART_MAIN);
+    lv_obj_set_style_bg_opa(panel, LV_OPA_COVER, LV_PART_MAIN);
     lv_obj_set_style_border_width(panel, 0, LV_PART_MAIN);
     lv_obj_set_style_pad_all(panel, 0, LV_PART_MAIN);
     lv_obj_set_style_bg_color(panel, ui_color_panel_pressed(), LV_PART_MAIN | LV_STATE_PRESSED);
@@ -45,10 +54,11 @@ lv_obj_t *ui_create_menu_icon(lv_obj_t *panel, lv_color_t color,
                                const char *symbol)
 {
     lv_obj_t *btn = lv_button_create(panel);
-    lv_obj_set_size(btn, 40, 40);
+    lv_obj_set_size(btn, 36, 36);
     lv_obj_set_align(btn, LV_ALIGN_LEFT_MID);
+    lv_obj_set_style_margin_left(btn, 10, LV_PART_MAIN);
     lv_obj_remove_flag(btn, LV_OBJ_FLAG_CLICKABLE | LV_OBJ_FLAG_SCROLLABLE);
-    lv_obj_set_style_radius(btn, 40, LV_PART_MAIN);
+    lv_obj_set_style_radius(btn, 18, LV_PART_MAIN);
     lv_obj_set_style_bg_color(btn, color, LV_PART_MAIN);
     lv_obj_set_style_bg_opa(btn, LV_OPA_COVER, LV_PART_MAIN);
     lv_obj_set_style_border_width(btn, 0, LV_PART_MAIN);
@@ -71,6 +81,46 @@ lv_obj_t *ui_create_menu_label(lv_obj_t *panel, const char *text)
     lv_obj_set_style_text_color(label, lv_color_white(), LV_PART_MAIN);
     lv_obj_set_style_text_font(label, &lv_font_montserrat_18, LV_PART_MAIN);
     return label;
+}
+
+lv_obj_t *ui_create_page_title(lv_obj_t *parent, const char *text)
+{
+    lv_obj_t *title = lv_label_create(parent);
+    lv_obj_set_pos(title, 0, ROUND_TOP_OFFSET);
+    lv_obj_set_align(title, LV_ALIGN_TOP_MID);
+    lv_label_set_text(title, text);
+    lv_obj_set_style_text_font(title, &lv_font_montserrat_24, LV_PART_MAIN);
+    lv_obj_set_style_text_color(title, lv_color_white(), LV_PART_MAIN);
+    return title;
+}
+
+lv_obj_t *ui_create_info_card(lv_obj_t *parent, int32_t y,
+                               const char *title, const char *value,
+                               lv_color_t color)
+{
+    lv_obj_t *card = lv_obj_create(parent);
+    lv_obj_set_size(card, ROUND_SAFE_W, 50);
+    lv_obj_align(card, LV_ALIGN_TOP_MID, 0, y);
+    lv_obj_set_style_radius(card, 12, LV_PART_MAIN);
+    lv_obj_set_style_bg_color(card, lv_color_hex(0x1A1A2E), LV_PART_MAIN);
+    lv_obj_set_style_bg_opa(card, LV_OPA_COVER, LV_PART_MAIN);
+    lv_obj_set_style_border_width(card, 0, LV_PART_MAIN);
+    lv_obj_set_style_pad_hor(card, 12, LV_PART_MAIN);
+    lv_obj_remove_flag(card, LV_OBJ_FLAG_CLICKABLE | LV_OBJ_FLAG_SCROLLABLE);
+
+    lv_obj_t *lbl_title = lv_label_create(card);
+    lv_label_set_text(lbl_title, title);
+    lv_obj_set_style_text_font(lbl_title, &lv_font_montserrat_14, 0);
+    lv_obj_set_style_text_color(lbl_title, color, 0);
+    lv_obj_align(lbl_title, LV_ALIGN_TOP_LEFT, 0, 4);
+
+    lv_obj_t *lbl_val = lv_label_create(card);
+    lv_label_set_text(lbl_val, value);
+    lv_obj_set_style_text_font(lbl_val, &lv_font_montserrat_14, 0);
+    lv_obj_set_style_text_color(lbl_val, lv_color_hex(0xCCCCCC), 0);
+    lv_obj_align(lbl_val, LV_ALIGN_BOTTOM_LEFT, 0, -4);
+
+    return lbl_val;
 }
 
 static void gesture_push_cb(lv_event_t *e)

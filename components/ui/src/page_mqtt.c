@@ -19,56 +19,29 @@ static lv_obj_t *s_label_status;
 static lv_obj_t *s_label_broker;
 static lv_obj_t *s_label_topic;
 
-static lv_obj_t *create_info_card(lv_obj_t *parent, int32_t y,
-                                  const char *title, const char *value,
-                                  lv_color_t color)
-{
-    lv_obj_t *card = lv_obj_create(parent);
-    lv_obj_set_size(card, LV_PCT(92), 52);
-    lv_obj_set_pos(card, 0, y);
-    lv_obj_set_align(card, LV_ALIGN_TOP_MID);
-    lv_obj_set_style_radius(card, 12, LV_PART_MAIN);
-    lv_obj_set_style_bg_color(card, lv_color_hex(0x1E1E1E), LV_PART_MAIN);
-    lv_obj_set_style_bg_opa(card, LV_OPA_COVER, LV_PART_MAIN);
-    lv_obj_set_style_border_width(card, 0, LV_PART_MAIN);
-    lv_obj_set_style_pad_hor(card, 12, LV_PART_MAIN);
-    lv_obj_remove_flag(card, LV_OBJ_FLAG_CLICKABLE | LV_OBJ_FLAG_SCROLLABLE);
-
-    lv_obj_t *lbl_title = lv_label_create(card);
-    lv_label_set_text(lbl_title, title);
-    lv_obj_set_style_text_font(lbl_title, &lv_font_montserrat_14, 0);
-    lv_obj_set_style_text_color(lbl_title, color, 0);
-    lv_obj_align(lbl_title, LV_ALIGN_TOP_LEFT, 0, 4);
-
-    lv_obj_t *lbl_val = lv_label_create(card);
-    lv_label_set_text(lbl_val, value);
-    lv_obj_set_style_text_font(lbl_val, &lv_font_montserrat_14, 0);
-    lv_obj_set_style_text_color(lbl_val, lv_color_hex(0xCCCCCC), 0);
-    lv_obj_align(lbl_val, LV_ALIGN_BOTTOM_LEFT, 0, -4);
-
-    return lbl_val;
-}
-
 static void page_mqtt_create(void)
 {
-    s_page_mqtt.screen = ui_create_screen();
+    s_page_mqtt.screen = ui_create_screen_scrollable();
     lv_obj_t *scr = s_page_mqtt.screen;
 
-    lv_obj_t *title = lv_label_create(scr);
-    lv_obj_set_pos(title, 10, 10);
-    lv_label_set_text(title, LV_SYMBOL_LEFT " MQTT");
-    lv_obj_set_style_text_font(title, &lv_font_montserrat_24, 0);
-    lv_obj_set_style_text_color(title, lv_color_white(), 0);
+    lv_obj_t *title = ui_create_page_title(scr, "Heart");
 
-    s_label_status = create_info_card(scr, 45, "Status",
-                                      LV_SYMBOL_CLOSE " Disconnected",
-                                      lv_color_hex(0xFF5252));
-    s_label_broker = create_info_card(scr, 105, "Broker",
-                                      "-",
-                                      lv_color_hex(0xAAAAAA));
-    s_label_topic  = create_info_card(scr, 165, "Topic",
-                                      "-",
-                                      lv_color_hex(0xAAAAAA));
+    int32_t y_start = ROUND_TOP_OFFSET + 30;
+
+    s_label_status = ui_create_info_card(scr, y_start,
+                                         "Status",
+                                         LV_SYMBOL_CLOSE " Disconnected",
+                                         lv_color_hex(0xFF5252));
+
+    s_label_broker = ui_create_info_card(scr, y_start + 50 + ROUND_PANEL_GAP,
+                                         "Broker",
+                                         "-",
+                                         lv_color_hex(0xAAAAAA));
+
+    s_label_topic  = ui_create_info_card(scr, y_start + 2 * (50 + ROUND_PANEL_GAP),
+                                         "Topic",
+                                         "-",
+                                         lv_color_hex(0xAAAAAA));
 
     ui_add_gesture_back(scr);
 

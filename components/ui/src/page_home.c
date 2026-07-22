@@ -1,8 +1,11 @@
 #include "page_home.h"
 #include "page_menu.h"
+#include "page_wifi.h"
 #include "ui_manager.h"
 #include "ui_utils.h"
 #include "ui_style.h"
+#include "ui_data.h"
+#include "quick_settings.h"
 #include "lvgl.h"
 #include "esp_log.h"
 #include <stdio.h>
@@ -17,56 +20,64 @@ static ui_page_t s_page_home = {
     .update  = NULL,
 };
 
-static lv_obj_t *s_btn_test;
-static lv_obj_t *s_label_status;
-static int s_press_count = 0;
+static lv_obj_t *s_label_clock;
+static lv_obj_t *s_label_date;
+static lv_obj_t *s_label_weekday;
+static lv_obj_t *s_label_battery;
+static lv_obj_t *s_label_steps;
+static lv_timer_t *s_clock_timer;
 
-static void btn_pressed_cb(lv_event_t *e)
+static ui_datetime_t s_current_time;
+static ui_sensor_data_t s_sensor;
+
+static void update_clock_display(void)
 {
-    ESP_LOGI(TAG, ">>> BUTTON PRESSED! count=%d", ++s_press_count);
-    lv_label_set_text(s_label_status, "PRESSED!");
+    lv_label_set_text_fmt(s_label_clock, "%02d:%02d",
+                          s_current_time.hour, s_current_time.minute);
+    lv_label_set_text_fmt(s_label_date, "%04d-%02d-%02d",
+                          s_current_time.year, s_current_time.month,
+                          s_current_time.day);
+    lv_label_set_text(s_label_weekday,
+                      ui_get_weekday_name(s_current_time.weekday));
 }
 
-static void btn_clicked_cb(lv_event_t *e)
+static void update_sensor_display(void)
 {
-    ESP_LOGI(TAG, ">>> BUTTON CLICKED!");
-    lv_label_set_text(s_label_status, "CLICKED!");
+    s_sensor = ui_get_sensor();
+    if (s_sensor.battery_present) {
+        lv_label_set_text_fmt(s_label_battery, LV_SYMBOL_BATTERY_3 " %d%%",
+                              s_sensor.battery_percent);
+    } else {
+        lv_label_set_text(s_label_battery, LV_SYMBOL_USB " USB");
+    }
+
+    lv_label_set_text_fmt(s_label_steps, LV_SYMBOL_SHUFFLE " %d",
+                          s_sensor.step_count);
 }
 
-static void btn_long_pressed_cb(lv_event_t *e)
+static void clock_timer_cb(lv_timer_t *timer)
 {
-    ESP_LOGI(TAG, ">>> BUTTON LONG PRESSED!");
-    lv_label_set_text(s_label_status, "LONG PRESS!");
-}
+    ui_datetime_t now = ui_get_time();
+    if (now.year != s_current_time.year ||
+        now.month != s_current_time.month ||
+        now.day != s_current_time.day ||
+        now.hour != s_current_time.hour ||
+        now.minute != s_current_time.minute ||
+        now.second != s_current_time.second) {
+        s_current_time = now;
+        update_clock_display();
+    }
 
-static void screen_pressed_cb(lv_event_t *e)
-{
-    lv_obj_t *target = lv_event_get_current_target(e);
-    ESP_LOGI(TAG, ">>> SCREEN PRESSED! target=%p screen=%p", target, s_page_home.screen);
-}
-
-static void screen_released_cb(lv_event_t *e)
-{
-    ESP_LOGI(TAG, ">>> SCREEN RELEASED!");
+    update_sensor_display();
 }
 
 static void screen_gesture_cb(lv_event_t *e)
 {
     lv_dir_t dir = lv_indev_get_gesture_dir(lv_indev_active());
-    const char *dir_name = "?";
-    switch (dir) {
-        case LV_DIR_TOP:    dir_name = "TOP (up)";    break;
-        case LV_DIR_BOTTOM: dir_name = "BOTTOM (down)"; break;
-        case LV_DIR_LEFT:   dir_name = "LEFT";        break;
-        case LV_DIR_RIGHT:  dir_name = "RIGHT";       break;
-        default: break;
-    }
-    ESP_LOGI(TAG, ">>> SCREEN GESTURE! dir=%s (%d)", dir_name, dir);
-    lv_label_set_text_fmt(s_label_status, "GESTURE: %s", dir_name);
-
     if (dir == LV_DIR_TOP) {
-        ESP_LOGI(TAG, ">>> SWIPE UP -> push Menu");
         ui_page_push(page_menu_get());
+    } else if (dir == LV_DIR_BOTTOM) {
+        quick_settings_show();
     }
 }
 
@@ -83,47 +94,59 @@ static void page_home_create(void)
     lv_obj_add_flag(scr, LV_OBJ_FLAG_CLICKABLE);
     lv_obj_remove_flag(scr, LV_OBJ_FLAG_SCROLLABLE);
 
-    lv_obj_add_event_cb(scr, screen_pressed_cb,  LV_EVENT_PRESSED,  NULL);
-    lv_obj_add_event_cb(scr, screen_released_cb, LV_EVENT_RELEASED, NULL);
-    lv_obj_add_event_cb(scr, screen_gesture_cb,  LV_EVENT_GESTURE,  NULL);
+    lv_obj_add_event_cb(scr, screen_gesture_cb, LV_EVENT_GESTURE, NULL);
 
-    ESP_LOGI(TAG, "screen=%p CLICKABLE=%d",
-             scr,
-             lv_obj_has_flag(scr, LV_OBJ_FLAG_CLICKABLE));
+    s_label_clock = lv_label_create(scr);
+    lv_label_set_text(s_label_clock, "00:00");
+    lv_obj_set_style_text_font(s_label_clock, &lv_font_montserrat_48, LV_PART_MAIN);
+    lv_obj_set_style_text_color(s_label_clock, lv_color_white(), LV_PART_MAIN);
+    lv_obj_align(s_label_clock, LV_ALIGN_CENTER, 0, -10);
 
-    s_btn_test = lv_button_create(scr);
-    lv_obj_set_size(s_btn_test, 120, 50);
-    lv_obj_align(s_btn_test, LV_ALIGN_CENTER, 0, -30);
+    s_label_date = lv_label_create(scr);
+    lv_label_set_text(s_label_date, "");
+    lv_obj_set_style_text_font(s_label_date, &lv_font_montserrat_14, LV_PART_MAIN);
+    lv_obj_set_style_text_color(s_label_date, ui_color_dim(), LV_PART_MAIN);
+    lv_obj_align(s_label_date, LV_ALIGN_CENTER, 0, 25);
 
-    lv_obj_t *btn_label = lv_label_create(s_btn_test);
-    lv_label_set_text(btn_label, "TEST");
-    lv_obj_center(btn_label);
+    s_label_weekday = lv_label_create(scr);
+    lv_label_set_text(s_label_weekday, "");
+    lv_obj_set_style_text_font(s_label_weekday, &lv_font_montserrat_14, LV_PART_MAIN);
+    lv_obj_set_style_text_color(s_label_weekday, ui_color_accent(), LV_PART_MAIN);
+    lv_obj_align(s_label_weekday, LV_ALIGN_CENTER, 0, 42);
 
-    lv_obj_add_event_cb(s_btn_test, btn_pressed_cb,       LV_EVENT_PRESSED,       NULL);
-    lv_obj_add_event_cb(s_btn_test, btn_clicked_cb,       LV_EVENT_CLICKED,       NULL);
-    lv_obj_add_event_cb(s_btn_test, btn_long_pressed_cb,  LV_EVENT_LONG_PRESSED,  NULL);
+    s_label_battery = lv_label_create(scr);
+    lv_label_set_text(s_label_battery, "");
+    lv_obj_set_style_text_font(s_label_battery, &lv_font_montserrat_18, LV_PART_MAIN);
+    lv_obj_set_style_text_color(s_label_battery, ui_color_battery(), LV_PART_MAIN);
+    lv_obj_align(s_label_battery, LV_ALIGN_CENTER, 0, 65);
 
-    ESP_LOGI(TAG, "button=%p CLICKABLE=%d",
-             s_btn_test,
-             lv_obj_has_flag(s_btn_test, LV_OBJ_FLAG_CLICKABLE));
+    s_label_steps = lv_label_create(scr);
+    lv_label_set_text(s_label_steps, "");
+    lv_obj_set_style_text_font(s_label_steps, &lv_font_montserrat_18, LV_PART_MAIN);
+    lv_obj_set_style_text_color(s_label_steps, ui_color_accent(), LV_PART_MAIN);
+    lv_obj_align(s_label_steps, LV_ALIGN_CENTER, 0, 85);
 
-    s_label_status = lv_label_create(scr);
-    lv_label_set_text(s_label_status, "Swipe up or tap button");
-    lv_obj_align(s_label_status, LV_ALIGN_CENTER, 0, 40);
-    lv_obj_set_style_text_color(s_label_status, lv_color_white(), LV_PART_MAIN);
+    s_current_time = ui_get_time();
+    s_sensor = ui_get_sensor();
+    update_clock_display();
+    update_sensor_display();
 
-    lv_obj_t *label_hint = lv_label_create(scr);
-    lv_label_set_text(label_hint, "LVGL Event Test");
-    lv_obj_align(label_hint, LV_ALIGN_TOP_MID, 0, 10);
-    lv_obj_set_style_text_color(label_hint, lv_color_hex(0x808080), LV_PART_MAIN);
+    s_clock_timer = lv_timer_create(clock_timer_cb, 1000, NULL);
 
-    ESP_LOGI(TAG, "home created (MINIMAL TEST)");
+    ESP_LOGI(TAG, "home created");
 }
 
 static void page_home_destroy(void)
 {
-    s_btn_test = NULL;
-    s_label_status = NULL;
+    if (s_clock_timer) {
+        lv_timer_delete(s_clock_timer);
+        s_clock_timer = NULL;
+    }
+    s_label_clock = NULL;
+    s_label_date = NULL;
+    s_label_weekday = NULL;
+    s_label_battery = NULL;
+    s_label_steps = NULL;
     s_page_home.screen = NULL;
     ESP_LOGI(TAG, "home destroyed");
 }

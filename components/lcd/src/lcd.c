@@ -50,52 +50,8 @@ static void lcd_set_window(uint16_t xs,
     lcd_write_cmd(GC9A01_RAMWR);
 }
 
-esp_err_t lcd_init(void)
+static void lcd_send_init_commands(void)
 {
-    gpio_reset_pin(LCD_DC);
-    gpio_set_direction(LCD_DC, GPIO_MODE_OUTPUT);
-    gpio_set_level(LCD_DC, 1);
-
-    gpio_reset_pin(LCD_RST);
-    gpio_set_direction(LCD_RST, GPIO_MODE_OUTPUT);
-
-    spi_bus_config_t bus_cfg = {
-        .mosi_io_num   = LCD_MOSI,
-        .miso_io_num   = LCD_MISO,
-        .sclk_io_num   = LCD_CLK,
-        .quadwp_io_num = -1,
-        .quadhd_io_num = -1,
-        .max_transfer_sz = LCD_WIDTH * 40 * 2,
-    };
-
-    esp_err_t ret;
-    spi_host_device_t host = SPI2_HOST;
-    ret = spi_bus_initialize(host, &bus_cfg, SPI_DMA_CH_AUTO);
-    if (ret != ESP_OK) {
-        return ret;
-    }
-
-    spi_device_interface_config_t dev_cfg = {
-        .clock_speed_hz = 40 * 1000 * 1000,
-        .mode           = 0,
-        .spics_io_num   = LCD_CS,
-        .queue_size     = 1,
-        .cs_ena_pretrans  = 1,
-        .cs_ena_posttrans = 1,
-    };
-
-    ret = spi_bus_add_device(host, &dev_cfg, &s_lcd);
-    if (ret != ESP_OK) {
-        return ret;
-    }
-
-    gpio_set_level(LCD_RST, 1);
-    vTaskDelay(pdMS_TO_TICKS(100));
-    gpio_set_level(LCD_RST, 0);
-    vTaskDelay(pdMS_TO_TICKS(100));
-    gpio_set_level(LCD_RST, 1);
-    vTaskDelay(pdMS_TO_TICKS(100));
-
     lcd_write_cmd(0xEF);
     lcd_write_cmd(0xEB);
     uint8_t eb14 = 0x14;
@@ -281,6 +237,67 @@ esp_err_t lcd_init(void)
 
     lcd_write_cmd(0x29);
     vTaskDelay(pdMS_TO_TICKS(20));
+}
+
+esp_err_t lcd_init(void)
+{
+    gpio_reset_pin(LCD_DC);
+    gpio_set_direction(LCD_DC, GPIO_MODE_OUTPUT);
+    gpio_set_level(LCD_DC, 1);
+
+    gpio_reset_pin(LCD_RST);
+    gpio_set_direction(LCD_RST, GPIO_MODE_OUTPUT);
+
+    spi_bus_config_t bus_cfg = {
+        .mosi_io_num   = LCD_MOSI,
+        .miso_io_num   = LCD_MISO,
+        .sclk_io_num   = LCD_CLK,
+        .quadwp_io_num = -1,
+        .quadhd_io_num = -1,
+        .max_transfer_sz = LCD_WIDTH * 40 * 2,
+    };
+
+    esp_err_t ret;
+    spi_host_device_t host = SPI2_HOST;
+    ret = spi_bus_initialize(host, &bus_cfg, SPI_DMA_CH_AUTO);
+    if (ret != ESP_OK) {
+        return ret;
+    }
+
+    spi_device_interface_config_t dev_cfg = {
+        .clock_speed_hz = 40 * 1000 * 1000,
+        .mode           = 0,
+        .spics_io_num   = LCD_CS,
+        .queue_size     = 1,
+        .cs_ena_pretrans  = 1,
+        .cs_ena_posttrans = 1,
+    };
+
+    ret = spi_bus_add_device(host, &dev_cfg, &s_lcd);
+    if (ret != ESP_OK) {
+        return ret;
+    }
+
+    gpio_set_level(LCD_RST, 1);
+    vTaskDelay(pdMS_TO_TICKS(100));
+    gpio_set_level(LCD_RST, 0);
+    vTaskDelay(pdMS_TO_TICKS(100));
+    gpio_set_level(LCD_RST, 1);
+    vTaskDelay(pdMS_TO_TICKS(100));
+
+    lcd_send_init_commands();
+
+    return ESP_OK;
+}
+
+esp_err_t lcd_reinit(void)
+{
+    gpio_set_level(LCD_RST, 0);
+    vTaskDelay(pdMS_TO_TICKS(20));
+    gpio_set_level(LCD_RST, 1);
+    vTaskDelay(pdMS_TO_TICKS(120));
+
+    lcd_send_init_commands();
 
     return ESP_OK;
 }

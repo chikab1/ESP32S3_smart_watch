@@ -1,5 +1,8 @@
 #include "qmi8658.h"
 #include "qmi8658_reg.h"
+#include "bsp_i2c.h"
+#include "freertos/FreeRTOS.h"
+#include "freertos/semphr.h"
 #include <string.h>
 
 static const float acc_scale_table[] = {
@@ -23,15 +26,27 @@ static esp_err_t qmi8658_write_reg(qmi8658_t *imu,
                                    uint8_t reg,
                                    uint8_t data)
 {
+    void *mtx = bsp_i2c_get_mutex();
+    if (mtx) xSemaphoreTake((SemaphoreHandle_t)mtx, portMAX_DELAY);
+
     uint8_t buf[2] = { reg, data };
-    return i2c_master_transmit(imu->dev, buf, 2, -1);
+    esp_err_t ret = i2c_master_transmit(imu->dev, buf, 2, -1);
+
+    if (mtx) xSemaphoreGive((SemaphoreHandle_t)mtx);
+    return ret;
 }
 
 static esp_err_t qmi8658_read_reg(qmi8658_t *imu,
                                   uint8_t reg,
                                   uint8_t *data)
 {
-    return i2c_master_transmit_receive(imu->dev, &reg, 1, data, 1, -1);
+    void *mtx = bsp_i2c_get_mutex();
+    if (mtx) xSemaphoreTake((SemaphoreHandle_t)mtx, portMAX_DELAY);
+
+    esp_err_t ret = i2c_master_transmit_receive(imu->dev, &reg, 1, data, 1, -1);
+
+    if (mtx) xSemaphoreGive((SemaphoreHandle_t)mtx);
+    return ret;
 }
 
 static esp_err_t qmi8658_read_regs(qmi8658_t *imu,
@@ -39,7 +54,13 @@ static esp_err_t qmi8658_read_regs(qmi8658_t *imu,
                                    uint8_t *buf,
                                    uint16_t len)
 {
-    return i2c_master_transmit_receive(imu->dev, &reg, 1, buf, len, -1);
+    void *mtx = bsp_i2c_get_mutex();
+    if (mtx) xSemaphoreTake((SemaphoreHandle_t)mtx, portMAX_DELAY);
+
+    esp_err_t ret = i2c_master_transmit_receive(imu->dev, &reg, 1, buf, len, -1);
+
+    if (mtx) xSemaphoreGive((SemaphoreHandle_t)mtx);
+    return ret;
 }
 
 esp_err_t qmi8658_init(qmi8658_t *imu,
@@ -109,6 +130,22 @@ esp_err_t qmi8658_init(qmi8658_t *imu,
     return ESP_OK;
 }
 
+esp_err_t qmi8658_deinit(qmi8658_t *imu)
+{
+    if (!imu) return ESP_ERR_INVALID_ARG;
+
+    if (imu->dev) {
+        esp_err_t ret = i2c_master_bus_rm_device(imu->dev);
+        if (ret != ESP_OK) {
+            return ret;
+        }
+        imu->dev = NULL;
+    }
+
+    imu->ready = false;
+    return ESP_OK;
+}
+
 esp_err_t qmi8658_read_id(qmi8658_t *imu,
                           uint8_t *id)
 {
@@ -155,4 +192,25 @@ esp_err_t qmi8658_read(qmi8658_t *imu,
     data->gz = gyro[2] * imu->gyro_scale;
 
     return ESP_OK;
+}
+
+esp_err_t qmi8658_set_odr(qmi8658_t *imu,
+                          uint8_t acc_odr,
+                          uint8_t gyro_odr)
+{
+    if (!imu->ready) return ESP_ERR_INVALID_STATE;
+
+    uint8_t ctrl2 = 0, ctrl3 = 0;
+    qmi8658_read_reg(imu, QMI8658_CTRL2, &ctrl2);
+    qmi8658_read_reg(imu, QMI8658_CTRL3, &ctrl3);
+
+    ctrl2 = (ctrl2 & ~(0x07 << QMI8658_CTRL2_ACC_ODR_POS)) |
+            (acc_odr << QMI8658_CTRL2_ACC_ODR_POS);
+    ctrl3 = (ctrl3 & ~(0x07 << QMI8658_CTRL3_GYRO_ODR_POS)) |
+            (gyro_odr << QMI8658_CTRL3_GYRO_ODR_POS);
+
+    esp_err_t ret = qmi8658_write_reg(imu, QMI8658_CTRL2, ctrl2);
+    if (ret != ESP_OK) return ret;
+
+    return qmi8658_write_reg(imu, QMI8658_CTRL3, ctrl3);
 }

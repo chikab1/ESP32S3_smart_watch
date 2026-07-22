@@ -29,14 +29,13 @@ typedef struct {
 
 static const menu_item_t s_items[] = {
     { "Settings",  0x3264C8, LV_SYMBOL_SETTINGS, page_settings_get },
-    { "IMU",       0xC80000, LV_SYMBOL_SHUFFLE,  page_imu_get      },
-    { "MQTT",      0x009680, LV_SYMBOL_WIFI,     page_mqtt_get     },
-    { "About",     0x808080, LV_SYMBOL_HOME,     page_about_get    },
-    { "System",    0xDC80E6, LV_SYMBOL_CHARGE,   page_system_get   },
+    { "IMU",       0xE11432, LV_SYMBOL_IMAGE,    page_imu_get      },
+    { "Heart",     0xDC80E6, LV_SYMBOL_BELL,     page_mqtt_get     },
+    { "Weather",   0x14C8E1, LV_SYMBOL_TINT,     page_about_get    },
+    { "About",     0x808080, LV_SYMBOL_HOME,     page_system_get   },
 };
 
 #define ITEM_COUNT (sizeof(s_items) / sizeof(s_items[0]))
-#define PANEL_HEIGHT 70
 
 static void menu_panel_clicked_cb(lv_event_t *e)
 {
@@ -49,20 +48,23 @@ static void menu_panel_clicked_cb(lv_event_t *e)
 
 static void page_menu_create(void)
 {
-    s_page_menu.screen = ui_create_screen();
+    s_page_menu.screen = ui_create_screen_scrollable();
     lv_obj_t *scr = s_page_menu.screen;
 
-    lv_obj_add_flag(scr, LV_OBJ_FLAG_SCROLLABLE);
-    lv_obj_set_scrollbar_mode(scr, LV_SCROLLBAR_MODE_OFF);
-    lv_obj_set_scroll_dir(scr, LV_DIR_VER);
+    lv_obj_t *title = ui_create_page_title(scr, "Menu");
+
+    int32_t y_start = ROUND_TOP_OFFSET + 30;
+    int32_t y = y_start;
 
     for (uint32_t i = 0; i < ITEM_COUNT; i++) {
-        lv_obj_t *panel = ui_create_menu_panel(scr, (int32_t)i * PANEL_HEIGHT);
+        lv_obj_t *panel = ui_create_menu_panel(scr, y);
         ui_create_menu_icon(panel, lv_color_hex(s_items[i].color_hex), s_items[i].symbol);
         ui_create_menu_label(panel, s_items[i].name);
 
         lv_obj_add_event_cb(panel, menu_panel_clicked_cb,
                             LV_EVENT_CLICKED, (void *)(uintptr_t)i);
+
+        y += ROUND_PANEL_H + ROUND_PANEL_GAP;
     }
 
     ui_add_gesture_back(scr);

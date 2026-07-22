@@ -32,27 +32,20 @@ static const about_entry_t s_entries[] = {
 };
 
 #define ENTRY_COUNT (sizeof(s_entries) / sizeof(s_entries[0]))
-#define ROW_HEIGHT 50
 
 static void page_about_create(void)
 {
-    s_page_about.screen = ui_create_screen();
+    s_page_about.screen = ui_create_screen_scrollable();
     lv_obj_t *scr = s_page_about.screen;
 
+    lv_obj_t *title = ui_create_page_title(scr, "About");
+
+    int32_t y_start = ROUND_TOP_OFFSET + 30;
+
     for (uint32_t i = 0; i < ENTRY_COUNT; i++) {
-        int32_t y = 15 + (int32_t)i * ROW_HEIGHT;
-
-        lv_obj_t *key_label = lv_label_create(scr);
-        lv_obj_set_pos(key_label, 20, y);
-        lv_label_set_text(key_label, s_entries[i].key);
-        lv_obj_set_style_text_color(key_label, ui_color_title(), LV_PART_MAIN);
-        lv_obj_set_style_text_font(key_label, &lv_font_montserrat_18, LV_PART_MAIN);
-
-        lv_obj_t *val_label = lv_label_create(scr);
-        lv_obj_set_pos(val_label, 25, y + 25);
-        lv_label_set_text(val_label, s_entries[i].value);
-        lv_obj_set_style_text_color(val_label, lv_color_white(), LV_PART_MAIN);
-        lv_obj_set_style_text_font(val_label, &lv_font_montserrat_14, LV_PART_MAIN);
+        ui_create_info_card(scr, y_start + (int32_t)i * (50 + ROUND_PANEL_GAP),
+                            s_entries[i].key, s_entries[i].value,
+                            ui_color_title());
     }
 
     ui_add_gesture_back(scr);
